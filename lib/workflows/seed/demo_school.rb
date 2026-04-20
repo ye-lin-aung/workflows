@@ -40,7 +40,8 @@ module Workflows
       ].freeze
 
       ADMINS = [
-        { key: :admin_dr_kim, display_name: "Dr. Kim", email: "kim@demo.edu" }
+        { key: :admin_dr_kim,      display_name: "Dr. Kim",     email: "kim@demo.edu" },
+        { key: :admin_new_marisol, display_name: "Marisol Tan", email: "marisol@demo.edu", onboarding: true }
       ].freeze
 
       module_function

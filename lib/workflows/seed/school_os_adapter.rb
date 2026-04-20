@@ -86,6 +86,12 @@ module Workflows
         end
 
         users.each do |key, user|
+          # Personas flagged `onboarding: true` (e.g. a new admin setting up
+          # their first school) must have no school membership so the app's
+          # onboarding wizard kicks in on first sign-in.
+          persona = Workflows::Seed::DemoSchool.find_persona(key)
+          next if persona && persona[:onboarding]
+
           role_type = role_type_for.call(key)
           next if role_type == :none # parents skip SchoolMembership
 
