@@ -137,4 +137,49 @@ class Workflows::PublisherTest < ActiveSupport::TestCase
       assert_includes system_args, "-ss"
     end
   end
+
+  test "upload_all uploads mp4 + vtt + poster to source_dir keys" do
+    uploads = []
+    fake_client = Object.new
+    fake_client.define_singleton_method(:upload) do |key:, path:, content_type:|
+      uploads << { key: key, path: path, content_type: content_type }
+    end
+
+    Workflows.config.minio_client = fake_client
+    p = Workflows::Publisher.new(
+      workflow_name: "teacher/grade_assignment", locale: "en",
+      source: "pr", pr_number: 42, sha: "a" * 40
+    )
+    p.send(:upload_all, { mp4: "/tmp/a.mp4", vtt: "/tmp/a.vtt" }, "/tmp/a.jpg")
+
+    assert_equal 3, uploads.size
+    keys = uploads.map { |u| u[:key] }
+    assert_includes keys, "lms/prs/42/#{"a" * 40}/teacher-grade_assignment-en.mp4"
+    assert_includes keys, "lms/prs/42/#{"a" * 40}/teacher-grade_assignment-en.vtt"
+    assert_includes keys, "lms/prs/42/#{"a" * 40}/teacher-grade_assignment-en.jpg"
+  ensure
+    Workflows.config.minio_client = nil
+  end
+
+  test "upload_all also writes current/ keys on main" do
+    uploads = []
+    fake_client = Object.new
+    fake_client.define_singleton_method(:upload) do |key:, path:, content_type:|
+      uploads << key
+    end
+
+    Workflows.config.minio_client = fake_client
+    p = Workflows::Publisher.new(
+      workflow_name: "teacher/grade_assignment", locale: "en",
+      source: "main", sha: "a" * 40
+    )
+    p.send(:upload_all, { mp4: "/tmp/a.mp4", vtt: "/tmp/a.vtt" }, "/tmp/a.jpg")
+
+    assert_equal 6, uploads.size
+    assert_includes uploads, "lms/current/teacher-grade_assignment-en.mp4"
+    assert_includes uploads, "lms/current/teacher-grade_assignment-en.vtt"
+    assert_includes uploads, "lms/current/teacher-grade_assignment-en.jpg"
+  ensure
+    Workflows.config.minio_client = nil
+  end
 end

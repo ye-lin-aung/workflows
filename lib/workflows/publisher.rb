@@ -89,5 +89,20 @@ module Workflows
     def run_ffmpeg(*args)
       system("ffmpeg", *args, out: File::NULL, err: File::NULL)
     end
+
+    # --- Uploads ---
+
+    def upload_all(paths, poster_path)
+      client = Workflows.config.minio_client
+      client.upload(key: mp4_key,    path: paths[:mp4],  content_type: "video/mp4")
+      client.upload(key: vtt_key,    path: paths[:vtt],  content_type: "text/vtt")
+      client.upload(key: poster_key, path: poster_path,  content_type: "image/jpeg")
+
+      return unless @source == "main"
+
+      client.upload(key: current_mp4_key,    path: paths[:mp4],  content_type: "video/mp4")
+      client.upload(key: current_vtt_key,    path: paths[:vtt],  content_type: "text/vtt")
+      client.upload(key: current_poster_key, path: poster_path,  content_type: "image/jpeg")
+    end
   end
 end
