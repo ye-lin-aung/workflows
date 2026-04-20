@@ -16,45 +16,47 @@ module Workflows
       end
 
       def run
-        FileUtils.mkdir_p(raw_dir)
-        adapter = build_adapter
-        adapter.start
-        # Register overlays as init scripts so they run on every navigation.
-        inject_overlays(adapter)
+        I18n.with_locale(ENV["LOCALE"] || I18n.default_locale) do
+          FileUtils.mkdir_p(raw_dir)
+          adapter = build_adapter
+          adapter.start
+          # Register overlays as init scripts so they run on every navigation.
+          inject_overlays(adapter)
 
-        cues = []
-        webm_path = nil
-        begin
-          sign_in_persona(adapter)
-          goto_start(adapter)
-          # The init scripts run at document start when <body> may not yet
-          # exist. Also run them here (idempotent via IIFE guards) after the
-          # page has loaded so window.__workflowSetCaption is defined.
-          adapter.evaluate(CaptionBar.init_script)
-          adapter.evaluate(CursorOverlay.init_script)
-          start_at = Time.now
-          Base.new(adapter: adapter).execute(@workflow) do |step, _idx|
-            cue_start_ms = ((Time.now - start_at) * 1000).to_i
-            caption_text = resolve_caption(step.caption)
-            adapter.evaluate(CaptionBar.update_script(caption_text))
-            sleep(((step.hold_ms || DEFAULT_HOLD_MS) / 1000.0))
-            cue_end_ms = ((Time.now - start_at) * 1000).to_i
-            cues << { start_ms: cue_start_ms, end_ms: cue_end_ms, text: caption_text }
+          cues = []
+          webm_path = nil
+          begin
+            sign_in_persona(adapter)
+            goto_start(adapter)
+            # The init scripts run at document start when <body> may not yet
+            # exist. Also run them here (idempotent via IIFE guards) after the
+            # page has loaded so window.__workflowSetCaption is defined.
+            adapter.evaluate(CaptionBar.init_script)
+            adapter.evaluate(CursorOverlay.init_script)
+            start_at = Time.now
+            Base.new(adapter: adapter).execute(@workflow) do |step, _idx|
+              cue_start_ms = ((Time.now - start_at) * 1000).to_i
+              caption_text = resolve_caption(step.caption)
+              adapter.evaluate(CaptionBar.update_script(caption_text))
+              sleep(((step.hold_ms || DEFAULT_HOLD_MS) / 1000.0))
+              cue_end_ms = ((Time.now - start_at) * 1000).to_i
+              cues << { start_ms: cue_start_ms, end_ms: cue_end_ms, text: caption_text }
+            end
+            # Grab the video path while the page is still alive. The file itself
+            # is not finalized until the context closes (in adapter.stop below),
+            # but Playwright requires us to read the path before close.
+            webm_path = adapter.video_path
+          ensure
+            adapter.stop
           end
-          # Grab the video path while the page is still alive. The file itself
-          # is not finalized until the context closes (in adapter.stop below),
-          # but Playwright requires us to read the path before close.
-          webm_path = adapter.video_path
-        ensure
-          adapter.stop
+
+          mp4_path = File.join(@output_dir, "#{flat_name}.mp4")
+          vtt_path = File.join(@output_dir, "#{flat_name}.vtt")
+          transcode_webm_to_mp4(webm_path, mp4_path) if webm_path
+          File.write(vtt_path, Workflows::Compilers::Webvtt.call(cues))
+
+          { mp4: mp4_path, vtt: vtt_path }
         end
-
-        mp4_path = File.join(@output_dir, "#{flat_name}.mp4")
-        vtt_path = File.join(@output_dir, "#{flat_name}.vtt")
-        transcode_webm_to_mp4(webm_path, mp4_path) if webm_path
-        File.write(vtt_path, Workflows::Compilers::Webvtt.call(cues))
-
-        { mp4: mp4_path, vtt: vtt_path }
       end
 
       private
