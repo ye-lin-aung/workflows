@@ -1,4 +1,5 @@
 require "test_helper"
+require "tempfile"
 
 class Workflows::PublisherTest < ActiveSupport::TestCase
   setup do
@@ -73,5 +74,67 @@ class Workflows::PublisherTest < ActiveSupport::TestCase
     assert_nil p.instance_variable_get(:@pr_number)
   ensure
     ENV.delete("GITHUB_SHA")
+  end
+
+  test "render_video delegates to RecordMode under I18n.with_locale" do
+    captured_locale = nil
+    fake_result = { mp4: "/tmp/a.mp4", vtt: "/tmp/a.vtt" }
+
+    fake_workflow = Object.new
+    fake_record_mode_instance = Object.new
+    fake_record_mode_instance.define_singleton_method(:run) do
+      captured_locale = I18n.locale
+      fake_result
+    end
+
+    prev_available = I18n.available_locales
+    I18n.available_locales = (prev_available + [:es]).uniq
+
+    # Stub class methods by swapping the singleton method and restoring in ensure.
+    loader_sc = Workflows::YamlLoader.singleton_class
+    loader_sc.send(:alias_method, :__orig_load_file, :load_file)
+    loader_sc.send(:define_method, :load_file) { |_path| fake_workflow }
+
+    rm_sc = Workflows::Runner::RecordMode.singleton_class
+    rm_sc.send(:alias_method, :__orig_new, :new)
+    rm_sc.send(:define_method, :new) { |**_kw| fake_record_mode_instance }
+
+    p = Workflows::Publisher.new(
+      workflow_name: "teacher/grade_assignment",
+      locale: "es", source: "main", sha: "a" * 40
+    )
+    result = p.send(:render_video)
+    assert_equal fake_result, result
+    assert_equal :es, captured_locale
+  ensure
+    I18n.available_locales = prev_available if prev_available
+    if Workflows::YamlLoader.singleton_class.method_defined?(:__orig_load_file) ||
+       Workflows::YamlLoader.singleton_class.private_method_defined?(:__orig_load_file)
+      Workflows::YamlLoader.singleton_class.send(:alias_method, :load_file, :__orig_load_file)
+      Workflows::YamlLoader.singleton_class.send(:remove_method, :__orig_load_file)
+    end
+    if Workflows::Runner::RecordMode.singleton_class.method_defined?(:__orig_new) ||
+       Workflows::Runner::RecordMode.singleton_class.private_method_defined?(:__orig_new)
+      Workflows::Runner::RecordMode.singleton_class.send(:alias_method, :new, :__orig_new)
+      Workflows::Runner::RecordMode.singleton_class.send(:remove_method, :__orig_new)
+    end
+  end
+
+  test "extract_poster runs ffmpeg and returns the jpg path" do
+    p = Workflows::Publisher.new(
+      workflow_name: "x/y", locale: "en", source: "main", sha: "a" * 40
+    )
+
+    Tempfile.create(["fake", ".mp4"]) do |f|
+      f.write("x"); f.close
+      p.define_singleton_method(:ffprobe_duration) { |_| 10.0 }
+
+      system_args = nil
+      p.define_singleton_method(:run_ffmpeg) { |*args| system_args = args; true }
+      poster_path = p.send(:extract_poster, f.path)
+      assert_equal f.path.sub(/\.mp4\z/, ".jpg"), poster_path
+      assert system_args, "expected ffmpeg to be invoked"
+      assert_includes system_args, "-ss"
+    end
   end
 end
