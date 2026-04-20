@@ -1,7 +1,9 @@
 module Workflows
   # Prints a Markdown catalog of current/ MinIO URLs.
   class Catalog
-    CATALOG_EXPIRY = 90 * 24 * 3600   # 90 days in seconds
+    # AWS SigV4 caps presigned URLs at 7 days (604_800 s). Catalog URLs are
+    # meant for docs/PR comments; a week is plenty — re-run the task to refresh.
+    CATALOG_EXPIRY = 7 * 24 * 3600 - 60   # just under one week
 
     def self.print_markdown(locales_dir: nil)
       rows = build_rows(locales_dir: locales_dir)
