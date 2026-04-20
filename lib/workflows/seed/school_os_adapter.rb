@@ -22,6 +22,7 @@ module Workflows
         assign_memberships(school, users)
         build_parent_links(users)
         build_subjects(school)
+        build_section_with_enrollments(school, users)
         users
       end
 
@@ -68,6 +69,43 @@ module Workflows
           next unless role_name
           role = ::Role.find_or_create_by!(name: role_name) { |r| r.system_role = true }
           user.user_roles.find_or_create_by!(role: role)
+        end
+        grant_demo_permissions
+      end
+
+      # Some host test environments load fixtures that pre-populate Role but
+      # not the full set of RolePermissions expected by the production seed.
+      # Demo personas rely on those grants to reach their workflow pages, so
+      # backfill the minimum set idempotently. No-op if Permission records
+      # are missing (e.g. Permission.sync! hasn't been run yet).
+      def grant_demo_permissions
+        return unless defined?(::Permission) && defined?(::RolePermission)
+
+        grants = {
+          "Instructor" => {
+            "attendance" => %w[read create],
+            "gradebook"  => %w[read create update],
+            "assignments" => %w[read create update delete],
+            "report_cards" => %w[read]
+          },
+          "Student" => {
+            "attendance" => %w[read]
+          },
+          "Admin" => {
+            "attendance" => %w[read create update delete]
+          }
+        }
+
+        grants.each do |role_name, features|
+          role = ::Role.find_by(name: role_name)
+          next unless role
+          features.each do |feature, actions|
+            actions.each do |action|
+              perm = ::Permission.find_by(feature: feature, action: action)
+              next unless perm
+              role.role_permissions.find_or_create_by!(permission: perm)
+            end
+          end
         end
       end
 
@@ -124,8 +162,7 @@ module Workflows
       def build_subjects(school)
         # Subject density keeps Instructor-facing views from rendering empty.
         # school-management's Subject requires a unique code per school, so
-        # derive one from the name. Section creation is skipped because it
-        # requires a GradeLevel/Term chain that the host seed provides.
+        # derive one from the name.
         return unless defined?(::Subject)
 
         Workflows::Seed::DemoSchool.teachers.each do |teacher|
@@ -133,6 +170,50 @@ module Workflows
           code = subject_name.upcase.gsub(/[^A-Z0-9]/, "_").gsub(/_+/, "_").sub(/\A_+|_+\z/, "")
           ::Subject.find_or_create_by!(school: school, code: code) do |s|
             s.name = subject_name
+          end
+        end
+      end
+
+      # Builds the Programme → AcademicYear → Term → GradeLevel → Section chain
+      # needed by the teacher/mark_attendance workflow. The section is named
+      # "Period 2 — Algebra I" (matching Ms. Alvarez's DemoSchool period+subject
+      # fields) and all 5 demo students are enrolled. Idempotent.
+      def build_section_with_enrollments(school, users)
+        return unless defined?(::Programme) && defined?(::Section) && defined?(::SectionEnrollment)
+
+        programme = ::Programme.find_or_create_by!(school: school, name: "Main Programme") do |p|
+          p.programme_type = "k12"
+        end
+
+        academic_year = ::AcademicYear.find_or_create_by!(school: school, name: Workflows::Seed::DemoSchool.school[:academic_year]) do |ay|
+          ay.start_date = Date.new(2026, 8, 1)
+          ay.end_date   = Date.new(2027, 6, 30)
+          ay.current    = true
+        end
+        ::AcademicYear.set_current!(academic_year) unless academic_year.current?
+
+        term = ::Term.find_or_create_by!(academic_year: academic_year, name: "Semester 1") do |t|
+          t.term_type  = "semester"
+          t.start_date = academic_year.start_date
+          t.end_date   = academic_year.start_date + 4.months
+        end
+
+        grade_level = ::GradeLevel.find_or_create_by!(programme: programme, name: "Grade 9") do |gl|
+          gl.level_order = 9
+        end
+
+        section = ::Section.find_or_create_by!(grade_level: grade_level, term: term, name: "Period 2 — Algebra I") do |s|
+          s.capacity = 30
+        end
+
+        student_keys = %i[student_jordan_patel student_sofia_ramirez student_dev_kapoor student_ava_thompson student_wei_zhang]
+        student_keys.each do |key|
+          user = users[key]
+          next unless user
+          membership = user.school_memberships.find_by(school: school)
+          next unless membership
+          ::SectionEnrollment.find_or_create_by!(school_membership: membership, section: section) do |se|
+            se.enrolled_at = Time.current if se.respond_to?(:enrolled_at=)
           end
         end
       end
