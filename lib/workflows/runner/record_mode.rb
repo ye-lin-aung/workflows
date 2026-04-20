@@ -25,6 +25,7 @@ module Workflows
         cues = []
         webm_path = nil
         begin
+          sign_in_persona(adapter)
           goto_start(adapter)
           # The init scripts run at document start when <body> may not yet
           # exist. Also run them here (idempotent via IIFE guards) after the
@@ -78,6 +79,22 @@ module Workflows
       def goto_start(adapter)
         url = @navigate_direct ? @workflow.start_at : build_url_from_helper
         adapter.goto(url)
+      end
+
+      # Record mode renders against a live Rails server, so the persona needs
+      # to be authenticated against that server before we goto the
+      # start_at URL. We resolve the persona through the host's resolver
+      # (same one used by TestMode) and drive the host's sign_in_adapter.
+      # Self-test runs (navigate_direct = true) skip this because they hit
+      # pre-rendered static HTML.
+      def sign_in_persona(adapter)
+        return if @navigate_direct
+        resolver = Workflows.config.persona_resolver
+        signer   = Workflows.config.sign_in_adapter
+        return unless resolver && signer
+        user = resolver.call(@workflow.persona)
+        return unless user
+        signer.call(adapter, user)
       end
 
       def build_url_from_helper

@@ -14,6 +14,7 @@ module Workflows
         instructor_account = build_instructor_account(users)
         courses = build_courses(instructor_account, users)
         build_enrollments(users, courses, instructor_account)
+        build_assessments(courses)
         users
       end
 
@@ -94,6 +95,33 @@ module Workflows
               e.status = :active if e.respond_to?(:status=)
             end
           end
+        end
+
+        # Enroll the subject-matter teacher as an instructor so they pass
+        # `authorize_course` on pages like teach/gradebook and teach/assessments.
+        algebra, biology = courses
+        instructor_enrollments = [
+          [users[:teacher_ms_alvarez], algebra],
+          [users[:teacher_mr_chen],    biology]
+        ]
+        instructor_enrollments.each do |user, course|
+          ::Enrollment.find_or_create_by!(user: user, course: course) do |e|
+            e.account = account if e.respond_to?(:account=)
+            e.role = :instructor if e.respond_to?(:role=)
+            e.status = :active if e.respond_to?(:status=)
+          end
+        end
+      end
+
+      def build_assessments(courses)
+        # One assignment per course so the gradebook renders the full table
+        # (rows + columns). The gradebook view hides its student rows entirely
+        # when a course has zero assessments, so the workflow's selectors
+        # would never appear without this.
+        algebra, _biology = courses
+        ::Assessment.find_or_create_by!(course: algebra, title: "Linear Equations Quiz") do |a|
+          a.assessment_type = :quiz if a.respond_to?(:assessment_type=)
+          a.description = "Short quiz covering one- and two-step linear equations." if a.respond_to?(:description=)
         end
       end
     end

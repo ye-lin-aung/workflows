@@ -9,7 +9,12 @@ class Workflows::Compilers::SystemTestTest < ActiveSupport::TestCase
     src = Workflows::Compilers::SystemTest.call(fixture_workflow)
 
     assert_match %r{require "application_system_test_case"}, src
-    assert_match %r{class Workflows::Demo::HelloTest < ApplicationSystemTestCase}, src
+    # Nested module blocks avoid host apps needing to pre-register the
+    # intermediate constants (Workflows::Demo) that Ruby otherwise demands
+    # before `class A::B::C` is legal.
+    assert_match %r{module Workflows}, src
+    assert_match %r{module Demo}, src
+    assert_match %r{class HelloTest < ApplicationSystemTestCase}, src
     assert_match %r{test "demo/hello"}, src
     assert_match %r{Workflows::Runner::TestMode.new\("demo/hello"\)\.run\(self\)}, src
   end
@@ -17,10 +22,9 @@ class Workflows::Compilers::SystemTestTest < ActiveSupport::TestCase
   test "derives a CamelCase classname from the workflow name" do
     wf = fixture_workflow
     src = Workflows::Compilers::SystemTest.call(wf)
-    # teacher/grade_assignment -> Workflows::Teacher::GradeAssignmentTest
-    # demo/hello -> Workflows::Demo::HelloTest (shown above)
-    # student/ai_studio_lesson -> Workflows::Student::AiStudioLessonTest
-    assert_match /class Workflows::Demo::HelloTest/, src
+    # teacher/grade_assignment -> Workflows / Teacher / GradeAssignmentTest
+    # demo/hello -> Workflows / Demo / HelloTest
+    assert_match %r{class HelloTest}, src
   end
 
   test "write_to writes the compiled source to the host's test/system/workflows/ tree" do

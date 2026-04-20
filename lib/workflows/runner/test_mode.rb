@@ -24,6 +24,9 @@ module Workflows
           Workflows.config.sign_in_adapter.call(adapter, user)
           adapter.goto(build_start_url(workflow, system_test))
           Base.new(adapter: adapter).execute(workflow)
+        rescue => e
+          debug_screenshot(adapter, workflow)
+          raise
         ensure
           adapter.stop
         end
@@ -63,7 +66,34 @@ module Workflows
       def build_start_url(workflow, system_test)
         # Evaluate the Ruby helper in the context of the host's URL helpers.
         path = Rails.application.routes.url_helpers.instance_eval(workflow.start_at)
-        "http://#{system_test.host}:#{system_test.port}#{path}"
+        "#{base_url(system_test)}#{path}"
+      end
+
+      # Real Rails system tests don't expose host/port directly. Capybara's
+      # current_session.server carries the booted-server base URL. Falls back
+      # to the old host/port pair (kept for the FakeSystemTest used in the
+      # gem's own tests).
+      def base_url(system_test)
+        if defined?(Capybara) && Capybara.current_session.server
+          Capybara.current_session.server.base_url
+        else
+          "http://#{system_test.host}:#{system_test.port}"
+        end
+      end
+
+      # On failure, save a screenshot + HTML snapshot to tmp/ so the operator
+      # has something to diagnose with. Never raises — this path is the
+      # rescue arm of the main runner.
+      def debug_screenshot(adapter, workflow)
+        return unless adapter.respond_to?(:page) && adapter.page
+        dir = Rails.root.join("tmp/workflow_failures")
+        FileUtils.mkdir_p(dir)
+        slug = workflow.name.tr("/", "_")
+        adapter.page.screenshot(path: dir.join("#{slug}.png").to_s) rescue nil
+        File.write(dir.join("#{slug}.html"), adapter.page.content) rescue nil
+        warn "[workflows] failure snapshot: #{dir}/#{slug}.{png,html} (url=#{adapter.current_url rescue "?"})"
+      rescue
+        # swallow
       end
     end
   end
