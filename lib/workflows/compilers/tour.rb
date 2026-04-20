@@ -14,12 +14,36 @@ module Workflows
       def call(workflow)
         {
           id:              workflow.tour_id,
-          route:           workflow.start_at,
+          route:           compile_route(workflow),
           title_key:       workflow.title,
           description_key: workflow.description,
           first_login:     false,
           steps:           workflow.steps.filter_map { |step| project_step(step, workflow) }
         }
+      end
+
+      # The tutorials gem's PathMatcher compiles the `route` string into a
+      # regex and refuses segments that mix literals with `:name` or `*name`
+      # tokens. Workflow `start_at` values are free-form Ruby expressions
+      # evaluated against url_helpers (e.g. `assessment_path(Assessment.find_by!(title: "..."))`),
+      # which can legitimately contain `:` from keyword-arg hashes and
+      # confuse the PathMatcher compiler. When the expression isn't obviously
+      # a plain URL path, fall back to a synthetic route that identifies the
+      # workflow by name — in-app tour availability matching on these
+      # programmatic start_ats would never work anyway (Phase 2 may add a
+      # separate route_override).
+      def compile_route(workflow)
+        raw = workflow.start_at.to_s
+        return raw if safe_route?(raw)
+        "/__workflow__/#{workflow.tour_id}"
+      end
+
+      def safe_route?(str)
+        return false if str.include?("(")
+        return false if str.include?('"') || str.include?("'")
+        return false if str.include?(" ")
+        return false if str.match?(/[^\/\w:\*\-]/)
+        true
       end
 
       def project_step(step, workflow)

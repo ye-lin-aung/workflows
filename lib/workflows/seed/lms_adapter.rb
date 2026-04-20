@@ -123,6 +123,57 @@ module Workflows
           a.assessment_type = :quiz if a.respond_to?(:assessment_type=)
           a.description = "Short quiz covering one- and two-step linear equations." if a.respond_to?(:description=)
         end
+
+        # A second, fully-seeded quiz with questions, used by the
+        # student/take_assessment workflow. A student needs real questions
+        # to answer, so we attach one multiple_choice and one short_answer
+        # question. Mixing auto-gradable and non-auto-gradable means the
+        # assessment goes to :submitted (pending grading) rather than
+        # :graded after submit — either state renders the results page,
+        # which is all the workflow asserts.
+        quiz = ::Assessment.find_or_create_by!(course: algebra, title: "Algebra I Fundamentals Quiz") do |a|
+          a.assessment_type = :quiz if a.respond_to?(:assessment_type=)
+          a.description = "Warm-up quiz: identify linear forms and explain a factoring step." if a.respond_to?(:description=)
+          # Leave max_attempts nil (unlimited) so rerunning the
+          # student/take_assessment workflow never hits the "no attempts
+          # remaining" branch.
+          a.show_correct_answers = true if a.respond_to?(:show_correct_answers=)
+        end
+
+        build_quiz_questions(quiz)
+      end
+
+      def build_quiz_questions(quiz)
+        return unless defined?(::AssessmentQuestion)
+
+        mc_content = "Which of the following is a linear equation in one variable?"
+        mc = quiz.assessment_questions.find_or_initialize_by(content: mc_content)
+        if mc.new_record?
+          mc.question_type = :multiple_choice if mc.respond_to?(:question_type=)
+          mc.points        = 1 if mc.respond_to?(:points=)
+          mc.position      = 1 if mc.respond_to?(:position=)
+          mc.required      = true if mc.respond_to?(:required=)
+          mc.metadata      = {
+            "options" => [
+              { "id" => "a", "text" => "x^2 + 3 = 7" },
+              { "id" => "b", "text" => "2x + 5 = 11" },
+              { "id" => "c", "text" => "xy = 4" },
+              { "id" => "d", "text" => "sqrt(x) = 3" }
+            ],
+            "correct_answer" => "b"
+          } if mc.respond_to?(:metadata=)
+          mc.save!
+        end
+
+        sa_content = "Briefly explain why factoring polynomial expressions is useful when solving equations."
+        sa = quiz.assessment_questions.find_or_initialize_by(content: sa_content)
+        if sa.new_record?
+          sa.question_type = :short_answer if sa.respond_to?(:question_type=)
+          sa.points        = 2 if sa.respond_to?(:points=)
+          sa.position      = 2 if sa.respond_to?(:position=)
+          sa.required      = true if sa.respond_to?(:required=)
+          sa.save!
+        end
       end
     end
   end

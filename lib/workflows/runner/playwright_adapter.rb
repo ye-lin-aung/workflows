@@ -26,6 +26,26 @@ module Workflows
         context_opts[:record_video_size] = @viewport        if @record_video_dir
         @context = @browser.new_context(**context_opts)
         @page    = @context.new_page
+
+        # Auto-accept confirm/alert dialogs (e.g. Turbo's `data-turbo-confirm`
+        # on a destructive button). Workflows script happy-path flows; if a
+        # dialog fires nothing in a recorded tour is going to click "Cancel",
+        # so the only sensible default is accept.
+        @page.on("dialog", ->(dialog) { dialog.accept })
+
+        # Apps can override Turbo's confirm method with a Tailwind / custom
+        # `<dialog>` modal that Playwright's `dialog` event never sees (it's
+        # not a native `window.confirm`). Install an init script in every
+        # page this context opens that overrides Turbo's form confirm with
+        # an auto-accept, matching the semantics of the native-dialog hook
+        # above.
+        @context.add_init_script(script: <<~JS)
+          document.addEventListener("turbo:load", function overrideConfirm() {
+            if (window.Turbo && window.Turbo.config && window.Turbo.config.forms) {
+              window.Turbo.config.forms.confirm = () => Promise.resolve(true);
+            }
+          });
+        JS
       end
 
       def stop
