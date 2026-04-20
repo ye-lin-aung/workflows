@@ -3,6 +3,10 @@ namespace :workflows do
   desc "Render a workflow to MP4+VTT. Usage: bin/rails workflows:render[teacher/grade_assignment]"
   task :render, [:name] => :environment do |_t, args|
     name = args[:name] or abort "usage: workflows:render[name]"
+    # Flag for host apps: anything that would make a real external API call
+    # (AI providers, payments, etc.) should switch to a deterministic stub so
+    # the recording is reproducible. Host apps gate on this env var.
+    ENV["WORKFLOWS_RECORD_MODE"] ||= "1"
     path = File.join(Workflows.config.workflows_path, "#{name}.yml")
     wf = Workflows::YamlLoader.load_file(path)
     output = Workflows.config.videos_output_path.to_s

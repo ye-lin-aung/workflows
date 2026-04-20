@@ -32,9 +32,21 @@ module Workflows
         when "hover"   then @adapter.hover(step.resolved_target)
         when "press"   then @adapter.press(step.resolved_target, step.value || "Enter")
         when "upload"  then @adapter.upload(step.resolved_target, step.value)
-        when "visit"   then @adapter.goto(step.value)
+        when "visit"   then @adapter.goto(resolve_visit_url(step.value))
         else raise "unknown action #{step.action.inspect}"
         end
+      end
+
+      # Workflow authors write relative URLs in `visit` steps (e.g.
+      # "/teach/courses/foo") so they don't have to know the host/port at
+      # author time — but Playwright's Page.goto rejects anything that
+      # isn't an absolute URL. Resolve against the current page's origin.
+      def resolve_visit_url(url)
+        return url if url.to_s =~ %r{\A[a-z]+://}i
+        current = @adapter.current_url.to_s
+        base = current[%r{\A[a-z]+://[^/]+}i]
+        return url unless base
+        url.to_s.start_with?("/") ? "#{base}#{url}" : "#{base}/#{url}"
       end
 
       def run_wait_for(spec)

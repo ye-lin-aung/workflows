@@ -15,6 +15,7 @@ module Workflows
         courses = build_courses(instructor_account, users)
         build_enrollments(users, courses, instructor_account)
         build_assessments(courses)
+        build_sections(courses)
         users
       end
 
@@ -52,6 +53,13 @@ module Workflows
         # The before_create callback on Account creates an admin account_user
         # for the owner; make sure it's there even on a rerun.
         alvarez.account_users.find_or_create_by!(account: account) { |au| au.admin = true }
+
+        # AI Studio is feature-flagged per account. The teacher/ai_studio_lesson
+        # workflow needs it enabled; without it the controller redirects away
+        # before we can target anything. Idempotent on re-seed.
+        if account.respond_to?(:ai_studio_enabled=) && !account.ai_studio_enabled
+          account.update!(ai_studio_enabled: true)
+        end
 
         # Attach the other teachers and all students to the shared account so
         # instructor dashboards see them.
@@ -141,6 +149,17 @@ module Workflows
         end
 
         build_quiz_questions(quiz)
+      end
+
+      # Seeds a single empty course section on the Algebra course so the
+      # teacher/ai_studio_lesson workflow has somewhere to land when it
+      # clicks "Add lesson". The section itself has no lessons by design —
+      # the workflow authors one.
+      def build_sections(courses)
+        algebra, _biology = courses
+        ::CourseSection.find_or_create_by!(course: algebra, title: "Unit 1: Linear Equations") do |s|
+          s.position = 1
+        end
       end
 
       def build_quiz_questions(quiz)
