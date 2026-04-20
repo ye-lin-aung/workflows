@@ -1,0 +1,11 @@
+# .gitignore
+*.gem
+.bundle
+pkg
+Gemfile.lock
+tmp/
+log/
+test/dummy/log/*.log
+test/dummy/tmp/
+test/dummy/storage/
+node_modules/
