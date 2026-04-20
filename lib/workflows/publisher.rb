@@ -12,8 +12,36 @@ module Workflows
     end
 
     def call
-      raise NotImplementedError, "filled in Task 9"
+      return existing_record if dedup_hit?
+
+      paths       = render_video
+      poster_path = extract_poster(paths[:mp4])
+      upload_all(paths, poster_path)
+      persist_record(paths, poster_path)
     end
+
+    def self.publish_all
+      locales_with_translations.each do |locale|
+        workflow_names.each do |name|
+          new(workflow_name: name, locale: locale).call
+        end
+      end
+    end
+
+    # Private class methods invoked from the rake tasks via send(:...).
+    def self.locales_with_translations(locales_dir: nil)
+      dir = locales_dir || File.join(Rails.root, "config/locales")
+      return [] unless File.directory?(dir)
+      Dir.glob(File.join(dir, "workflows.*.yml")).map do |f|
+        File.basename(f).match(/\Aworkflows\.(.+)\.yml\z/)&.[](1)
+      end.compact.uniq
+    end
+    private_class_method :locales_with_translations
+
+    def self.workflow_names
+      Workflows::YamlLoader.load_directory(Workflows.config.workflows_path.to_s).map(&:name)
+    end
+    private_class_method :workflow_names
 
     private
 
@@ -129,6 +157,21 @@ module Workflows
       return 0 unless last_end
       h, m, s, ms = last_end.map(&:to_i)
       (h * 3_600_000) + (m * 60_000) + (s * 1000) + ms
+    end
+
+    # --- Dedup ---
+
+    def dedup_hit?
+      return false if ENV["FORCE_RENDER"] == "1"
+      return false if @source == "main"
+      Workflows.config.minio_client.exists?(mp4_key)
+    end
+
+    def existing_record
+      Workflows::Video.find_by(
+        workflow_name: @workflow_name, locale: @locale,
+        commit_sha: @sha, source: @source
+      )
     end
   end
 end

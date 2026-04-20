@@ -215,4 +215,106 @@ class Workflows::PublisherTest < ActiveSupport::TestCase
   ensure
     Workflows::Video.delete_all
   end
+
+  test "#call delegates through render, upload, persist" do
+    sequence = []
+
+    p = Workflows::Publisher.new(
+      workflow_name: "teacher/grade_assignment", locale: "en",
+      source: "main", sha: "c" * 40
+    )
+    p.define_singleton_method(:dedup_hit?) { sequence << :dedup; false }
+    p.define_singleton_method(:render_video) { sequence << :render; { mp4: "/tmp/m", vtt: "/tmp/v" } }
+    p.define_singleton_method(:extract_poster) { |_| sequence << :poster; "/tmp/p" }
+    p.define_singleton_method(:upload_all) { |_, _| sequence << :upload }
+    p.define_singleton_method(:persist_record) { |_, _| sequence << :persist; :ok }
+
+    assert_equal :ok, p.call
+    assert_equal %i[dedup render poster upload persist], sequence
+  end
+
+  test "#call returns existing record when dedup_hit? is true" do
+    p = Workflows::Publisher.new(
+      workflow_name: "teacher/grade_assignment", locale: "en",
+      source: "pr", pr_number: 1, sha: "d" * 40
+    )
+    p.define_singleton_method(:dedup_hit?) { true }
+
+    rendered = false
+    p.define_singleton_method(:render_video) { rendered = true; {} }
+
+    p.call
+    refute rendered, "should skip render when deduped"
+  end
+
+  test "dedup_hit? is false on main (always re-upload current/)" do
+    fake_client = Object.new
+    fake_client.define_singleton_method(:exists?) { |_| true }
+    Workflows.config.minio_client = fake_client
+
+    p = Workflows::Publisher.new(
+      workflow_name: "x/y", locale: "en", source: "main", sha: "a" * 40
+    )
+    refute p.send(:dedup_hit?), "main should never dedup"
+  ensure
+    Workflows.config.minio_client = nil
+  end
+
+  test "dedup_hit? is true on pr when MinIO has the mp4" do
+    fake_client = Object.new
+    fake_client.define_singleton_method(:exists?) { |_| true }
+    Workflows.config.minio_client = fake_client
+
+    p = Workflows::Publisher.new(
+      workflow_name: "x/y", locale: "en", source: "pr", pr_number: 1, sha: "a" * 40
+    )
+    assert p.send(:dedup_hit?)
+  ensure
+    Workflows.config.minio_client = nil
+  end
+
+  test "dedup_hit? is false when FORCE_RENDER=1" do
+    fake_client = Object.new
+    fake_client.define_singleton_method(:exists?) { |_| true }
+    Workflows.config.minio_client = fake_client
+    ENV["FORCE_RENDER"] = "1"
+
+    p = Workflows::Publisher.new(
+      workflow_name: "x/y", locale: "en", source: "pr", pr_number: 1, sha: "a" * 40
+    )
+    refute p.send(:dedup_hit?)
+  ensure
+    Workflows.config.minio_client = nil
+    ENV.delete("FORCE_RENDER")
+  end
+
+  test ".locales_with_translations returns locales with workflows.<l>.yml files" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "workflows.en.yml"), "---\nen:\n")
+      File.write(File.join(dir, "workflows.es.yml"), "---\nes:\n")
+      File.write(File.join(dir, "ignore.yml"), "---\nignore:\n")
+
+      locales = Workflows::Publisher.send(:locales_with_translations, locales_dir: dir)
+      assert_equal %w[en es].sort, locales.sort
+    end
+  end
+
+  test ".workflow_names lists workflow YAMLs in workflows_path" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "a.yml"), <<~YML)
+        name: a/one
+        title: t
+        description: d
+        host: lms
+        persona: u
+        start_at: root_path
+        steps:
+          - caption: x
+      YML
+      Workflows.config.workflows_path = dir
+      assert_equal ["a/one"], Workflows::Publisher.send(:workflow_names)
+    ensure
+      Workflows.config.workflows_path = nil
+    end
+  end
 end
