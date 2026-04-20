@@ -182,4 +182,37 @@ class Workflows::PublisherTest < ActiveSupport::TestCase
   ensure
     Workflows.config.minio_client = nil
   end
+
+  test "persist_record creates a Workflows::Video row with correct keys" do
+    p = Workflows::Publisher.new(
+      workflow_name: "teacher/grade_assignment", locale: "en",
+      source: "main", sha: "a" * 40
+    )
+    p.define_singleton_method(:webvtt_duration) { |_| 5432 }
+
+    record = p.send(:persist_record, { mp4: "/tmp/a.mp4", vtt: "/tmp/a.vtt" }, "/tmp/a.jpg")
+
+    assert_equal "teacher/grade_assignment", record.workflow_name
+    assert_equal "en",                       record.locale
+    assert_equal "a" * 40,                   record.commit_sha
+    assert_equal "main",                     record.source
+    assert_equal 5432,                       record.duration_ms
+    assert_equal "lms/main/#{"a" * 40}/teacher-grade_assignment-en.mp4", record.mp4_key
+  ensure
+    Workflows::Video.delete_all
+  end
+
+  test "persist_record is idempotent on same identity" do
+    p = Workflows::Publisher.new(
+      workflow_name: "teacher/grade_assignment", locale: "en",
+      source: "main", sha: "a" * 40
+    )
+    p.define_singleton_method(:webvtt_duration) { |_| 5432 }
+
+    a = p.send(:persist_record, { mp4: "/tmp/a.mp4", vtt: "/tmp/a.vtt" }, "/tmp/a.jpg")
+    b = p.send(:persist_record, { mp4: "/tmp/a.mp4", vtt: "/tmp/a.vtt" }, "/tmp/a.jpg")
+    assert_equal a.id, b.id
+  ensure
+    Workflows::Video.delete_all
+  end
 end

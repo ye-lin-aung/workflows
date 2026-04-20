@@ -104,5 +104,31 @@ module Workflows
       client.upload(key: current_vtt_key,    path: paths[:vtt],  content_type: "text/vtt")
       client.upload(key: current_poster_key, path: poster_path,  content_type: "image/jpeg")
     end
+
+    # --- Persistence ---
+
+    def persist_record(paths, poster_path)
+      Workflows::Video.find_or_create_by!(
+        workflow_name: @workflow_name,
+        locale:        @locale,
+        commit_sha:    @sha,
+        source:        @source
+      ) do |v|
+        v.pr_number   = @pr_number
+        v.duration_ms = webvtt_duration(paths[:vtt])
+        v.rendered_at = Time.current
+        v.mp4_key     = mp4_key
+        v.vtt_key     = vtt_key
+        v.poster_key  = poster_key
+      end
+    end
+
+    def webvtt_duration(vtt_path)
+      return 0 unless vtt_path && File.exist?(vtt_path)
+      last_end = File.read(vtt_path).scan(/-->\s*(\d\d):(\d\d):(\d\d)\.(\d\d\d)/).last
+      return 0 unless last_end
+      h, m, s, ms = last_end.map(&:to_i)
+      (h * 3_600_000) + (m * 60_000) + (s * 1000) + ms
+    end
   end
 end
