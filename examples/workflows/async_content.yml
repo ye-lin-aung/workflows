@@ -1,0 +1,50 @@
+# Archetype: async content (AJAX / Turbo Stream response).
+#
+# Drop this file into a host's config/workflows/ to see it loaded by
+# Workflows::YamlLoader.load_file. The selectors, persona, and start_at are
+# placeholders — change them to match your host app.
+#
+# Covers two concerns that come up a lot with Turbo and AJAX-heavy pages:
+#   * `wait_for: { selector:, contains: }` — blocks until the selector's text
+#     contains the given substring. The runner calls wait_for_function under
+#     the hood, so the check is live — it re-polls as Turbo swaps in the new
+#     markup.
+#   * `hold_ms:` — extra pause after a step finishes. Only affects the recording;
+#     the system test doesn't wait extra.
+#
+# Captions are inline English strings, not i18n keys, so no locale file is
+# required to try this out.
+
+name: examples/async_content
+title: "Save a draft and watch the flash"
+description: "Demonstrates waiting for a substring in an AJAX-rendered flash message."
+host: lms
+persona: example_user
+start_at: new_article_path
+
+setup: []
+
+steps:
+  - caption: "We land on the blank article form."
+    wait_for: { selector: "[data-tour='article-form']" }
+
+  - caption: "Type a headline."
+    action: fill
+    target: "[data-tour='article-headline']"
+    value: "Reflections on the 1963 moon shot"
+
+  - caption: "Type the body."
+    action: fill
+    target: "[data-tour='article-body']"
+    value: "It was a very long flight, and then a very short one."
+
+  - caption: "Click 'Save draft'. The request goes over Turbo Stream."
+    action: click
+    target: "[data-tour='article-save-draft']"
+
+  - caption: "Wait for the flash to contain 'Saved successfully' — Turbo swaps it in once the server responds."
+    wait_for: { selector: "[data-tour='flash-notice']", contains: "Saved successfully" }
+    hold_ms: 1000
+
+  - caption: "Confirm the draft indicator is now showing in the header."
+    assert: { selector: "[data-tour='article-status']", contains: "Draft" }

@@ -1,0 +1,95 @@
+# Archetype: multi-step wizard.
+#
+# Drop this file into a host's config/workflows/ to see it loaded by
+# Workflows::YamlLoader.load_file. The selectors, persona, and start_at are
+# placeholders — change them to match your host app.
+#
+# Wizard pattern:
+#   1. Wait for the current step container to appear.
+#   2. Fill its fields.
+#   3. Click "Continue" and wait for the NEXT step's container before proceeding.
+#
+# The wait_for after every continue click is what keeps the runner honest on
+# slow CI — without it, the next `fill` may race the Turbo swap and write into
+# the previous step's input.
+#
+# Captions are inline English strings, not i18n keys, so no locale file is
+# required to try this out.
+
+name: examples/multi_step_wizard
+title: "Onboard a new project"
+description: "Walk through the five-step project onboarding wizard."
+host: lms
+persona: example_user
+start_at: new_project_wizard_path
+
+setup: []
+
+steps:
+  # Step 1 — Basics
+  - caption: "Step 1 of 5: name the project."
+    wait_for: { selector: "[data-tour-step='wizard-basics']" }
+
+  - caption: "Type the project name."
+    action: fill
+    target: "[data-tour='wizard-project-name']"
+    value: "Atlas Rewrite"
+
+  - caption: "Type a short description."
+    action: fill
+    target: "[data-tour='wizard-project-description']"
+    value: "Rewrite the legacy Atlas service in Rust."
+
+  - caption: "Continue to Step 2."
+    action: click
+    target: "[data-tour='wizard-continue']"
+    wait_for: { selector: "[data-tour-step='wizard-team']" }
+
+  # Step 2 — Team
+  - caption: "Step 2 of 5: pick a team lead."
+    action: select
+    target: "[data-tour='wizard-team-lead']"
+    value: "avery"
+
+  - caption: "Continue to Step 3."
+    action: click
+    target: "[data-tour='wizard-continue']"
+    wait_for: { selector: "[data-tour-step='wizard-schedule']" }
+
+  # Step 3 — Schedule
+  - caption: "Step 3 of 5: set a kickoff date."
+    action: fill
+    target: "[data-tour='wizard-kickoff']"
+    value: "2026-05-01"
+
+  - caption: "Continue to Step 4."
+    action: click
+    target: "[data-tour='wizard-continue']"
+    wait_for: { selector: "[data-tour-step='wizard-budget']" }
+
+  # Step 4 — Budget
+  - caption: "Step 4 of 5: enter the budget."
+    action: fill
+    target: "[data-tour='wizard-budget-amount']"
+    value: "150000"
+
+  - caption: "Flag this as a priority initiative."
+    action: check
+    target: "[data-tour='wizard-priority']"
+
+  - caption: "Continue to Step 5."
+    action: click
+    target: "[data-tour='wizard-continue']"
+    wait_for: { selector: "[data-tour-step='wizard-review']" }
+
+  # Step 5 — Review + finish
+  - caption: "Step 5 of 5: review and finish."
+    wait_for: { selector: "[data-tour='wizard-review-summary']", contains: "Atlas Rewrite" }
+
+  - caption: "Click Finish to create the project."
+    action: click
+    target: "[data-tour='wizard-finish']"
+    wait_for: { selector: "[data-tour='project-dashboard-hero']" }
+
+  - caption: "The new project's dashboard is now showing."
+    assert: { selector: "[data-tour='project-dashboard-hero']", contains: "Atlas Rewrite" }

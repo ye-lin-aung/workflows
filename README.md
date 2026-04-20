@@ -220,6 +220,11 @@ The upshot: authoring a workflow automatically gives you a driver.js tour. There
 
 Caption-only steps (no `target` / `target_css`) are dropped from the tour projection — driver.js requires an element to highlight — but they still appear as subtitles in the video.
 
+## Examples
+
+- [`docs/EXAMPLES.md`](docs/EXAMPLES.md) — cookbook with 15 recipes covering common authoring patterns, both host initializer shapes (Devise + `has_secure_password`), programmatic invocation, and debugging.
+- [`examples/workflows/`](examples/workflows/) — 4 copy-pasteable archetype YAMLs: form fill, multi-step wizard, read-only navigation, async content.
+
 ## Development
 
 The gem ships a dummy Rails app under `test/dummy/` used by every test. Run the suite:

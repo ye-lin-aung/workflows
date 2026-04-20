@@ -1,0 +1,40 @@
+# Archetype: read-only navigation workflow.
+#
+# Drop this file into a host's config/workflows/ to see it loaded by
+# Workflows::YamlLoader.load_file. The selectors, persona, and start_at are
+# placeholders — change them to match your host app.
+#
+# No writes: the workflow only clicks, hovers, and waits. Use `hold_ms:` on
+# steps where the viewer needs a moment to absorb what's on screen — the extra
+# pause shows up in the recorded video but does not slow the system test down
+# in a meaningful way on CI.
+#
+# Captions are inline English strings, not i18n keys, so no locale file is
+# required to try this out.
+
+name: examples/read_only_navigation
+title: "Tour the customer dashboard"
+description: "Open a customer record and walk through their activity tabs."
+host: lms
+persona: example_user
+start_at: customers_path
+
+setup: []
+
+steps:
+  - caption: "We land on the customer index."
+    wait_for: { selector: "[data-tour='customers-index-hero']" }
+
+  - caption: "Open the Acme Corp record."
+    action: click
+    target: "[data-tour='customer-row-acme']"
+    wait_for: { selector: "[data-tour='customer-detail-hero']" }
+
+  - caption: "The activity timeline on the right shows recent events."
+    wait_for: { selector: "[data-tour='customer-timeline']" }
+    hold_ms: 1500
+
+  - caption: "Hover the revenue card for a breakdown tooltip."
+    action: hover
+    target: "[data-tour='customer-revenue-card']"
+    hold_ms: 1200

@@ -1,0 +1,61 @@
+# Archetype: form-fill workflow.
+#
+# Drop this file into a host's config/workflows/ to see it loaded by
+# Workflows::YamlLoader.load_file. The selectors, persona, and start_at are
+# placeholders — change them to match your host app.
+#
+# Fields used here:
+#   * `host: lms` — must match Workflows.config.host_name (:lms or :school_os)
+#   * `persona: example_user` — passed to Workflows.config.persona_resolver
+#   * `start_at` — a Ruby expression eval'd against Rails URL helpers
+#   * `action: fill` / `select` / `check` / `uncheck` / `click` — from the
+#     allowed set in Workflows::Step::ALLOWED_ACTIONS
+#   * `wait_for: { selector:, contains: }` — blocks until the DOM satisfies
+#   * `assert: { selector:, contains: }` — fails the test if not present
+#
+# Captions are inline English strings, not i18n keys, so no locale file is
+# required to try this out.
+
+name: examples/form_fill
+title: "Create a new book"
+description: "Fill out the new-book form and submit it."
+host: lms
+persona: example_user
+start_at: new_book_path
+
+setup: []
+
+steps:
+  - caption: "We land on the blank new-book form."
+    wait_for: { selector: "[data-tour='book-form']" }
+
+  - caption: "Type the title."
+    action: fill
+    target: "[data-tour='book-title-input']"
+    value: "The Pragmatic Programmer"
+
+  - caption: "Type the author."
+    action: fill
+    target: "[data-tour='book-author-input']"
+    value: "Andrew Hunt, David Thomas"
+
+  - caption: "Pick a genre from the dropdown."
+    action: select
+    target: "[data-tour='book-genre-select']"
+    value: "non_fiction"
+
+  - caption: "Mark the book as available for loan."
+    action: check
+    target: "[data-tour='book-available-checkbox']"
+
+  - caption: "Uncheck the 'notify subscribers' toggle."
+    action: uncheck
+    target: "[data-tour='book-notify-checkbox']"
+
+  - caption: "Submit the form."
+    action: click
+    target: "[data-tour='book-submit']"
+    wait_for: { selector: "[data-tour='flash-notice']", contains: "created" }
+
+  - caption: "The new book's detail page is now showing."
+    assert: { selector: "[data-tour='book-detail-hero']" }
