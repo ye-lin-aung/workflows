@@ -19,4 +19,6 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "rails", ">= 8.1.0"
   spec.add_dependency "playwright-ruby-client", "~> 1.50"
+  spec.add_dependency "aws-sdk-s3", "~> 1.140"
+  spec.add_dependency "octokit",    "~> 9.0"
 end
