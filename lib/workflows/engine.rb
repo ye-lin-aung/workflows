@@ -21,5 +21,19 @@ module Workflows
     # Don't auto-append migrations — this gem has none in Phase 1.
     def append_migrations(app)
     end
+
+    # Hand the tutorials gem a callable that projects our workflow YAML into
+    # tour hashes. When tutorials' SourceResolver runs it will include these
+    # alongside any legacy config/tours/*.yml files.
+    initializer "workflows.register_tutorials_hook", after: :load_config_initializers do
+      next unless defined?(::Tutorials::SourceResolver)
+
+      ::Tutorials::SourceResolver.register_hook(lambda do |workflows_dir|
+        next [] unless workflows_dir && File.directory?(workflows_dir)
+        Workflows::YamlLoader.load_directory(workflows_dir).map do |wf|
+          Workflows::Compilers::Tour.call(wf)
+        end
+      end)
+    end
   end
 end
