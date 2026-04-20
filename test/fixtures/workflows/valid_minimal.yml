@@ -1,0 +1,9 @@
+name: demo/hello
+title: demo.hello.title
+description: demo.hello.description
+host: lms
+persona: demo_user
+start_at: root_path
+
+steps:
+  - caption: demo.hello.step_1

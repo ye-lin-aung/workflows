@@ -1,0 +1,7 @@
+title: t
+description: d
+host: lms
+persona: u
+start_at: root_path
+steps:
+  - caption: x

@@ -1,0 +1,27 @@
+name: demo/full
+title: demo.full.title
+description: demo.full.description
+host: school_os
+persona: demo_admin
+start_at: admin_dashboard_path
+viewport: { width: 1920, height: 1080 }
+
+setup:
+  - { factory: widget, attrs: { color: blue } }
+
+steps:
+  - caption: demo.full.step_1
+    wait_for: { selector: "[data-tour='hero']" }
+
+  - caption: demo.full.step_2
+    action: fill
+    target: "[data-tour='name-input']"
+    value: Alice
+
+  - caption: demo.full.step_3
+    action: click
+    target_css: ".submit-button"
+    hold_ms: 1000
+
+  - caption: demo.full.step_4
+    assert: { selector: "[data-tour='success']", contains: "Welcome" }

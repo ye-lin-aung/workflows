@@ -1,0 +1,10 @@
+name: demo/bad
+title: t
+description: d
+host: lms
+persona: u
+start_at: root_path
+steps:
+  - caption: x
+    action: teleport
+    target: "[data-tour='a']"
