@@ -25,11 +25,24 @@ module Workflows
     # Hand the tutorials gem a callable that projects our workflow YAML into
     # tour hashes. When tutorials' SourceResolver runs it will include these
     # alongside any legacy config/tours/*.yml files.
-    initializer "workflows.register_tutorials_hook", after: :load_config_initializers do
+    initializer "workflows.register_tutorials_hook", before: "tutorials.load_tours" do
+      begin
+        require "tutorials/source_resolver"
+      rescue LoadError
+        next
+      end
       next unless defined?(::Tutorials::SourceResolver)
 
       ::Tutorials::SourceResolver.register_hook(lambda do |workflows_dir|
         next [] unless workflows_dir && File.directory?(workflows_dir)
+        # The hook is invoked from tutorials.load_tours, which runs before
+        # Rails' Finisher sets up the main Zeitwerk autoloader. Eagerly require
+        # the classes this lambda touches so references resolve without relying
+        # on autoload. Mirrors the tutorials engine's own load_tours pattern.
+        require "workflows/step"
+        require "workflows/workflow"
+        require "workflows/yaml_loader"
+        require "workflows/compilers/tour"
         Workflows::YamlLoader.load_directory(workflows_dir).map do |wf|
           Workflows::Compilers::Tour.call(wf)
         end
