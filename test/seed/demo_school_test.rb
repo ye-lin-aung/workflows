@@ -34,10 +34,11 @@ class Workflows::Seed::DemoSchoolTest < ActiveSupport::TestCase
     assert_equal :student_jordan_patel, priya[:child_key]
   end
 
-  test "defines one admin" do
+  test "defines two admins" do
     admins = Workflows::Seed::DemoSchool.admins
-    assert_equal 1, admins.size
+    assert_equal 2, admins.size
     assert_equal "Dr. Kim", admins.first[:display_name]
+    assert_equal "Marisol Tan", admins.last[:display_name]
   end
 
   test "find_persona looks up any member by persona key" do
