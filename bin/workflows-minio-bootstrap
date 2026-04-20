@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# bin/workflows-minio-bootstrap
+#
+# One-time setup: creates the workflow-videos bucket and applies lifecycle
+# rules (7-day expiration on prs/ prefixes; main/ and current/ permanent).
+#
+# Requires `mc` (MinIO client) on PATH. Install:
+#   brew install minio/stable/mc          # macOS
+#   go install github.com/minio/mc@latest # linux/go
+#
+# Usage:
+#   WORKFLOWS_MINIO_ENDPOINT=http://localhost:9000 \
+#   WORKFLOWS_MINIO_ACCESS_KEY=... \
+#   WORKFLOWS_MINIO_SECRET_KEY=... \
+#   WORKFLOWS_MINIO_BUCKET=workflow-videos \
+#     bin/workflows-minio-bootstrap
+set -euo pipefail
+
+: "${WORKFLOWS_MINIO_ENDPOINT:?need WORKFLOWS_MINIO_ENDPOINT}"
+: "${WORKFLOWS_MINIO_ACCESS_KEY:?need WORKFLOWS_MINIO_ACCESS_KEY}"
+: "${WORKFLOWS_MINIO_SECRET_KEY:?need WORKFLOWS_MINIO_SECRET_KEY}"
+: "${WORKFLOWS_MINIO_BUCKET:=workflow-videos}"
+
+ALIAS=workflow-bootstrap
+
+echo "== Configuring mc alias =="
+mc alias set "$ALIAS" "$WORKFLOWS_MINIO_ENDPOINT" "$WORKFLOWS_MINIO_ACCESS_KEY" "$WORKFLOWS_MINIO_SECRET_KEY"
+
+echo "== Ensuring bucket $WORKFLOWS_MINIO_BUCKET exists =="
+mc mb --ignore-existing "$ALIAS/$WORKFLOWS_MINIO_BUCKET"
+
+echo "== Applying lifecycle rules =="
+for host in lms school_os; do
+  mc ilm rule add --expire-days 7 --prefix "$host/prs" "$ALIAS/$WORKFLOWS_MINIO_BUCKET" 2>/dev/null || true
+done
+
+echo "== Current lifecycle =="
+mc ilm rule ls "$ALIAS/$WORKFLOWS_MINIO_BUCKET" || true
+
+echo "== Done =="
