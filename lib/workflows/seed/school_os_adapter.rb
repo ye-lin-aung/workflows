@@ -2,10 +2,16 @@ module Workflows
   module Seed
     # Materializes Workflows::Seed::DemoSchool into school_os-side models:
     # School, User (has_secure_password), Role, UserRole, SchoolMembership,
-    # ParentStudentLink, plus Section/Subject/Assignment density for non-empty
-    # views. Idempotent.
+    # ParentStudentLink, plus Subject density for non-empty views.
+    # Idempotent.
+    #
+    # school-management's User enforces a password-complexity policy
+    # (min length 8, uppercase + digit by default), so the seed uses a
+    # compliant default that host sign-in adapters must also fill in.
     class SchoolOsAdapter
-      DEFAULT_PASSWORD = "password"
+      DEFAULT_PASSWORD = "Password1!"
+      SCHOOL_CODE      = "LAKESIDE"
+      DEFAULT_THEME    = "default"
 
       def call
         raise "school_os models not loaded" unless defined?(::School) && defined?(::Role)
@@ -15,24 +21,28 @@ module Workflows
         assign_roles(users)
         assign_memberships(school, users)
         build_parent_links(users)
-        build_sections_and_subjects(school)
+        build_subjects(school)
         users
       end
 
       private
 
       def build_school
-        ::School.find_or_create_by!(name: Workflows::Seed::DemoSchool.school[:name])
+        ::School.find_or_create_by!(code: SCHOOL_CODE) do |s|
+          s.name  = Workflows::Seed::DemoSchool.school[:name]
+          s.theme = DEFAULT_THEME if s.respond_to?(:theme=)
+        end
       end
 
       def build_users
         Workflows::Seed::DemoSchool.all_personas.each_with_object({}) do |persona, acc|
           first, *rest = persona[:display_name].split
           last = rest.last || first
+          # Strip common honorifics so the stored first_name reads naturally.
+          first = first.sub(/\A(Ms\.|Mr\.|Dr\.|Mrs\.)\z/, "").strip.presence || first
           user = ::User.find_or_initialize_by(email_address: persona[:email])
           if user.new_record?
-            user.first_name = first.sub(/\A(Ms\.|Mr\.|Dr\.)/, "").strip.presence || first
-            user.first_name = first if user.first_name.blank?
+            user.first_name = first
             user.last_name  = last
             user.password = DEFAULT_PASSWORD
             user.password_confirmation = DEFAULT_PASSWORD
@@ -62,9 +72,26 @@ module Workflows
       end
 
       def assign_memberships(school, users)
-        users.each_value do |user|
+        # school-management's SchoolMembership.role_type enum is
+        # {student: 0, teacher: 1, staff: 2}. Parents don't get a
+        # school-membership record in this schema — a User + ParentStudentLink
+        # is enough for parents to see their linked children.
+        role_type_for = lambda do |key|
+          case key.to_s.split("_").first
+          when "teacher" then :teacher
+          when "student" then :student
+          when "admin"   then :staff
+          else :none
+          end
+        end
+
+        users.each do |key, user|
+          role_type = role_type_for.call(key)
+          next if role_type == :none # parents skip SchoolMembership
+
           user.school_memberships.find_or_create_by!(school: school) do |m|
-            m.status = :active if m.respond_to?(:status=)
+            m.role_type  = role_type
+            m.started_at = Time.current if m.respond_to?(:started_at=)
           end
         end
       end
@@ -81,20 +108,26 @@ module Workflows
           ::ParentStudentLink.find_or_create_by!(
             parent_user: parent_user,
             student_membership: student_membership
-          )
+          ) do |psl|
+            psl.effective_from = Date.current if psl.respond_to?(:effective_from=)
+            psl.verified = true if psl.respond_to?(:verified=)
+          end
         end
       end
 
-      def build_sections_and_subjects(school)
-        # Sections and subject density are nice-to-have for visually non-empty
-        # views — keep each model optional via defined? so tests that don't
-        # need them aren't blocked by missing classes.
-        return unless defined?(::Section) && defined?(::Subject)
+      def build_subjects(school)
+        # Subject density keeps Instructor-facing views from rendering empty.
+        # school-management's Subject requires a unique code per school, so
+        # derive one from the name. Section creation is skipped because it
+        # requires a GradeLevel/Term chain that the host seed provides.
+        return unless defined?(::Subject)
 
         Workflows::Seed::DemoSchool.teachers.each do |teacher|
-          subject = ::Subject.find_or_create_by!(name: teacher[:subject], school: school)
-          ::Section.find_or_create_by!(name: "Period #{teacher[:period]} — #{teacher[:subject]}",
-                                       subject: subject, school: school)
+          subject_name = teacher[:subject]
+          code = subject_name.upcase.gsub(/[^A-Z0-9]/, "_").gsub(/_+/, "_").sub(/\A_+|_+\z/, "")
+          ::Subject.find_or_create_by!(school: school, code: code) do |s|
+            s.name = subject_name
+          end
         end
       end
     end
