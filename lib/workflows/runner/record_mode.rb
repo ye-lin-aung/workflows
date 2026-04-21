@@ -15,21 +15,34 @@ module Workflows
     # then transcodes the resulting .webm to .mp4 via ffmpeg.
     class RecordMode
       # Milliseconds to hold on each step AFTER the action fires. Tuned for
-      # readability — users need time to read the caption + see the outcome.
-      DEFAULT_HOLD_MS = 1200
+      # tutorial-video readability — viewers need time to read the caption,
+      # see the cursor arrive, and observe the result of the action.
+      DEFAULT_HOLD_MS = 2000
 
-      # Typing delay per character, in ms. 60ms/char ≈ 17 chars/sec — slow
-      # enough to be visibly animated but not painfully so.
-      TYPE_DELAY_MS = 60
+      # Typing delay per character, in ms. 100ms/char ≈ 10 chars/sec —
+      # visibly slow enough that a watcher can follow the text being typed.
+      TYPE_DELAY_MS = 100
 
-      # Pause while the cursor travels to a target before the action fires.
-      # Matches the CSS transition time in CursorOverlay#init_script (260ms)
-      # plus headroom so the cursor visibly arrives.
-      CURSOR_SETTLE_MS = 400
+      # Pause while the cursor travels to a target. Matches the CSS transition
+      # time in CursorOverlay#init_script (700ms) with headroom so the cursor
+      # visibly arrives before any click/type fires.
+      CURSOR_SETTLE_MS = 900
 
-      # Short extra pause after a click so the ripple/highlight is visible
-      # before the next step starts.
-      POST_CLICK_MS = 350
+      # Pause AFTER a click or check fires, before the next step starts. Gives
+      # the viewer a beat to see the outcome (page update, ripple, etc.).
+      POST_CLICK_MS = 700
+
+      # Pause after a wait_for successfully resolves — typically means a page
+      # transition or Turbo frame update has landed. Gives the viewer a beat
+      # to register the new state before the next caption/step kicks in.
+      POST_TRANSITION_MS = 600
+
+      # Pause at the start of each step, after the caption is shown, so the
+      # viewer has time to read it before anything moves.
+      CAPTION_SETTLE_MS = 600
+
+      # How long the click ripple is visible before the actual click fires.
+      RIPPLE_VISIBLE_MS = 250
 
       def initialize(workflow:, output_dir:, navigate_direct: false)
         @workflow        = workflow
@@ -106,7 +119,7 @@ module Workflows
           cue_start_ms = ((Time.now - start_at) * 1000).to_i
           caption_text = resolve_caption(step.caption)
           adapter.evaluate(CaptionBar.update_script(caption_text))
-          sleep 0.3 # caption settle
+          sleep(CAPTION_SETTLE_MS / 1000.0)
 
           coords = move_cursor_to_target(adapter, step) if step.resolved_target
           dispatch_animated(adapter, step, coords)
@@ -114,7 +127,11 @@ module Workflows
           # "after this click/fill, wait for X to appear" (e.g. Turbo frame
           # update after save). For action:none steps, dispatch is a no-op so
           # wait_for still fires and effectively gates the caption-only step.
-          run_wait_for(adapter, step.wait_for) if step.wait_for?
+          if step.wait_for?
+            run_wait_for(adapter, step.wait_for)
+            # Extra pause for page-transition legibility.
+            sleep(POST_TRANSITION_MS / 1000.0)
+          end
           run_assert(adapter, step.assert) if step.assert?
 
           hold_ms = step.hold_ms || DEFAULT_HOLD_MS
@@ -149,7 +166,7 @@ module Workflows
         when "click"
           apply_highlight(adapter, target)
           adapter.evaluate(CursorOverlay.ripple_script(coords[0], coords[1])) if coords
-          sleep 0.15 # ripple visible before the actual click
+          sleep(RIPPLE_VISIBLE_MS / 1000.0)
           adapter.click(target)
           sleep(POST_CLICK_MS / 1000.0)
           remove_highlight(adapter, target)

@@ -22,8 +22,8 @@ module Workflows
                 transform: translate(-4px, -2px);
                 z-index: 2147483646;
                 pointer-events: none;
-                transition: top 260ms cubic-bezier(0.2, 0.9, 0.3, 1),
-                            left 260ms cubic-bezier(0.2, 0.9, 0.3, 1);
+                transition: top 700ms cubic-bezier(0.2, 0.9, 0.3, 1),
+                            left 700ms cubic-bezier(0.2, 0.9, 0.3, 1);
               }
               #workflow-cursor svg { width: 100%; height: 100%; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
               .workflow-ripple {
