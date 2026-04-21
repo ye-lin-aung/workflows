@@ -77,6 +77,24 @@ module Workflows
       def press(selector, k)  ; @page.press(selector, k)       ; end
       def upload(selector, path) ; @page.set_input_files(selector, path) ; end
 
+      # Type keyboard input with per-character delay — used by record mode to
+      # show a typing animation rather than an instant fill.
+      def type(selector, text, delay_ms: 0)
+        @page.type(selector, text, delay: delay_ms)
+      end
+
+      # Return the element's bounding box as { x:, y:, width:, height: } in
+      # viewport coordinates, or nil if the element is missing/hidden. Record
+      # mode uses this to position the SVG cursor over the target before the
+      # action fires.
+      def bounding_box(selector)
+        handle = @page.query_selector(selector)
+        return nil unless handle
+        box = handle.bounding_box
+        return nil unless box
+        { x: box["x"], y: box["y"], width: box["width"], height: box["height"] }
+      end
+
       # Waits
       def wait_for_selector(selector, contains: nil, timeout_ms: 10_000)
         @page.wait_for_selector(selector, timeout: timeout_ms)
