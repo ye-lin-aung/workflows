@@ -70,7 +70,15 @@ module Workflows
     # --- Environment detection ---
 
     def detect_sha
-      ENV["GITHUB_SHA"].presence || `git rev-parse HEAD 2>/dev/null`.strip.presence || "unknown"
+      # Priority:
+      #   1. GITHUB_SHA (GitHub Actions)
+      #   2. KAMAL_VERSION (set by Kamal on deployed containers — image SHA)
+      #   3. Local `git rev-parse` (laptop)
+      #   4. "unknown" fallback
+      ENV["GITHUB_SHA"].presence ||
+        ENV["KAMAL_VERSION"].presence ||
+        `git rev-parse HEAD 2>/dev/null`.strip.presence ||
+        "unknown"
     end
 
     def detect_pr_number
