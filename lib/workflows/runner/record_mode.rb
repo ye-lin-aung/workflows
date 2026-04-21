@@ -109,8 +109,12 @@ module Workflows
           sleep 0.3 # caption settle
 
           coords = move_cursor_to_target(adapter, step) if step.resolved_target
-          run_wait_for(adapter, step.wait_for) if step.wait_for?
           dispatch_animated(adapter, step, coords)
+          # wait_for runs after the action by design — authors write it as
+          # "after this click/fill, wait for X to appear" (e.g. Turbo frame
+          # update after save). For action:none steps, dispatch is a no-op so
+          # wait_for still fires and effectively gates the caption-only step.
+          run_wait_for(adapter, step.wait_for) if step.wait_for?
           run_assert(adapter, step.assert) if step.assert?
 
           hold_ms = step.hold_ms || DEFAULT_HOLD_MS
