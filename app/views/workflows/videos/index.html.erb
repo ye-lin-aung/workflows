@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workflow videos — <%= @host %></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <main class="max-w-6xl mx-auto px-6 py-12">
+    <header class="mb-8">
+      <h1 class="text-3xl font-semibold tracking-tight"><%= @host %> — Workflow videos</h1>
+      <p class="mt-2 text-slate-600">Short demos of common tasks. Grouped by user role.</p>
+    </header>
+
+    <% if @roles.empty? %>
+      <div class="bg-white rounded-lg border border-slate-200 p-8 text-center">
+        <p class="text-slate-500">No videos published yet.</p>
+      </div>
+    <% else %>
+      <nav class="flex gap-1 border-b border-slate-200 mb-8" role="tablist">
+        <% @roles.each_with_index do |role, i| %>
+          <button
+            type="button"
+            role="tab"
+            aria-selected="<%= i == 0 %>"
+            aria-controls="panel-<%= role %>"
+            id="tab-<%= role %>"
+            data-tab-button="<%= role %>"
+            class="px-4 py-2 -mb-px text-sm font-medium border-b-2 <%= i == 0 ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' %>">
+            <%= role.humanize %>
+            <span class="ml-1 text-xs text-slate-400">(<%= @by_role[role].size %>)</span>
+          </button>
+        <% end %>
+      </nav>
+
+      <% @roles.each_with_index do |role, i| %>
+        <section
+          id="panel-<%= role %>"
+          role="tabpanel"
+          aria-labelledby="tab-<%= role %>"
+          data-tab-panel="<%= role %>"
+          class="<%= i == 0 ? '' : 'hidden' %>">
+          <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <% @by_role[role].each do |v| %>
+              <article class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition">
+                <div class="aspect-video bg-slate-900">
+                  <video
+                    controls
+                    preload="metadata"
+                    class="w-full h-full"
+                    poster="<%= v.poster_url(expires_in: 7.days.to_i) %>">
+                    <source src="<%= v.mp4_url(expires_in: 7.days.to_i) %>" type="video/mp4">
+                    <track
+                      kind="subtitles"
+                      src="<%= v.vtt_url(expires_in: 7.days.to_i) %>"
+                      srclang="<%= v.locale %>"
+                      label="<%= v.locale.upcase %>"
+                      default>
+                  </video>
+                </div>
+                <div class="p-4">
+                  <h2 class="font-semibold text-slate-900">
+                    <%= v.workflow_name.split("/").last.humanize %>
+                  </h2>
+                  <p class="mt-1 text-xs text-slate-500">
+                    <%= (v.duration_ms / 1000.0).round(1) %>s
+                    <span class="mx-1">·</span>
+                    <%= v.locale.upcase %>
+                  </p>
+                </div>
+              </article>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+    <% end %>
+
+    <footer class="mt-16 pt-8 border-t border-slate-200 text-sm text-slate-500">
+      Rendered from <code class="text-xs">config/workflows/**</code>.
+      Re-run <code class="text-xs">bin/rails workflows:publish_all</code> on main to refresh.
+    </footer>
+  </main>
+
+  <script>
+    // Minimal vanilla tab switching — no JS framework dependency
+    document.querySelectorAll("[data-tab-button]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var name = btn.dataset.tabButton;
+        document.querySelectorAll("[data-tab-button]").forEach(function (b) {
+          var selected = b === btn;
+          b.setAttribute("aria-selected", selected);
+          b.classList.toggle("border-slate-900", selected);
+          b.classList.toggle("text-slate-900", selected);
+          b.classList.toggle("border-transparent", !selected);
+          b.classList.toggle("text-slate-500", !selected);
+        });
+        document.querySelectorAll("[data-tab-panel]").forEach(function (p) {
+          p.classList.toggle("hidden", p.dataset.tabPanel !== name);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
