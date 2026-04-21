@@ -282,12 +282,36 @@ module Workflows
       end
 
       def transcode_webm_to_mp4(webm_path, mp4_path)
-        cmd = [
-          "ffmpeg", "-y", "-i", webm_path,
-          "-c:v", "libx264", "-pix_fmt", "yuv420p",
-          "-movflags", "+faststart",
-          mp4_path
-        ]
+        music_path = Workflows.config.background_music_path.to_s
+        has_music  = music_path.present? && File.exist?(music_path)
+
+        cmd =
+          if has_music
+            volume = (Workflows.config.background_music_volume || 0.15).to_f
+            # -stream_loop -1 loops the music track indefinitely; -shortest trims
+            # output to the video length. volume filter scales music under 1.0
+            # so it never overpowers hypothetical narration (Phase 2.2+).
+            [
+              "ffmpeg", "-y",
+              "-i", webm_path,
+              "-stream_loop", "-1", "-i", music_path,
+              "-filter_complex", "[1:a]volume=#{volume}[a]",
+              "-map", "0:v", "-map", "[a]",
+              "-c:v", "libx264", "-pix_fmt", "yuv420p",
+              "-c:a", "aac", "-b:a", "128k",
+              "-shortest",
+              "-movflags", "+faststart",
+              mp4_path
+            ]
+          else
+            [
+              "ffmpeg", "-y", "-i", webm_path,
+              "-c:v", "libx264", "-pix_fmt", "yuv420p",
+              "-movflags", "+faststart",
+              mp4_path
+            ]
+          end
+
         ok = system(*cmd, out: File::NULL, err: File::NULL)
         raise "ffmpeg transcode failed for #{webm_path}" unless ok
       end

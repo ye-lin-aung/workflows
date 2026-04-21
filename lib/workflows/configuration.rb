@@ -5,7 +5,8 @@ module Workflows
     include Singleton
 
     attr_accessor :workflows_path, :videos_output_path, :persona_resolver, :sign_in_adapter,
-                  :minio_client, :host_name
+                  :minio_client, :host_name,
+                  :background_music_path, :background_music_volume
 
     def initialize
       @workflows_path     = nil   # set by host: Rails.root.join("config/workflows")
@@ -14,6 +15,8 @@ module Workflows
       @sign_in_adapter    = nil   # host-supplied lambda: ->(page, user) { signs the user in via playwright }
       @minio_client       = nil   # host-supplied Workflows::MinioClient (or duck-typed equivalent)
       @host_name          = nil   # host-supplied Symbol: :lms or :school_os (used as MinIO key prefix)
+      @background_music_path   = nil  # absolute path to an mp3 to mix under the recorded video; nil = no music
+      @background_music_volume = 0.15 # 0.0–1.0 — default keeps music well under hypothetical narration
     end
   end
 end
