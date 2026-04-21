@@ -86,4 +86,34 @@ class Workflows::Prospect::ExplorerTest < ActiveSupport::TestCase
     assert_equal 1, mcp.calls.size
     assert_equal "browser_snapshot", mcp.calls.first[:name]
   end
+
+  test "terminates when the time cap is exceeded" do
+    anthropic = FakeAnthropic.new([
+      turn(tool_uses: [{ id: "1", name: "browser_snapshot", input: {} }], input_tokens: 100, output_tokens: 50),
+      turn(tool_uses: [{ id: "2", name: "browser_snapshot", input: {} }], input_tokens: 100, output_tokens: 50),
+      turn(tool_uses: [{ id: "3", name: "browser_snapshot", input: {} }], input_tokens: 100, output_tokens: 50)
+    ])
+    mcp = FakeMcp.new
+
+    exp = Workflows::Prospect::Explorer.new(anthropic_client: anthropic, mcp_client: mcp)
+    # Override record_usage: each turn "burns" 300s; simple-question default cap = 480s
+    exp.define_singleton_method(:record_usage) do |budget, response, _started|
+      budget.record_turn(
+        tokens_used: (response.usage.input_tokens + response.usage.output_tokens),
+        elapsed_ms_delta: 300_000
+      )
+    end
+
+    state = exp.explore(entry: simple_entry, target_url: "http://localhost:3000")
+    refute state.concluded?   # budget terminated before any conclude tool_use
+  end
+
+  test "terminates when the token cap is exceeded" do
+    anthropic = FakeAnthropic.new([
+      turn(tool_uses: [{ id: "1", name: "browser_snapshot", input: {} }], input_tokens: 50_000, output_tokens: 0)
+    ])
+    exp = Workflows::Prospect::Explorer.new(anthropic_client: anthropic, mcp_client: FakeMcp.new)
+    state = exp.explore(entry: simple_entry, target_url: "http://localhost:3000")
+    refute state.concluded?
+  end
 end
