@@ -5,7 +5,8 @@ module Workflows
   # (upload / exists? / signed_url / delete) so the Publisher and Catalog
   # can be tested by stubbing just these four methods.
   class MinioClient
-    def initialize(endpoint:, access_key:, secret_key:, bucket:, region: "us-east-1")
+    def initialize(endpoint:, access_key:, secret_key:, bucket:,
+                   public_endpoint: nil, region: "us-east-1")
       @bucket = bucket
       @s3 = Aws::S3::Client.new(
         endpoint: endpoint,
@@ -14,9 +15,26 @@ module Workflows
         force_path_style: true,
         region: region
       )
+      # When a public endpoint is configured (e.g. a Cloudflare Tunnel fronting
+      # MinIO), use a second client for presigning so the signature is computed
+      # against the hostname browsers will actually send. Uploads + existence
+      # checks continue to go through the internal endpoint.
+      #
       # Held separately so presigned URLs keep the configured MinIO endpoint
       # even when tests stub @s3 with a bare Aws::S3::Client(stub_responses: true).
-      @presigner = Aws::S3::Presigner.new(client: @s3)
+      presigning_client =
+        if public_endpoint
+          Aws::S3::Client.new(
+            endpoint: public_endpoint,
+            access_key_id: access_key,
+            secret_access_key: secret_key,
+            force_path_style: true,
+            region: region
+          )
+        else
+          @s3
+        end
+      @presigner = Aws::S3::Presigner.new(client: presigning_client)
     end
 
     def upload(key:, path:, content_type:)
