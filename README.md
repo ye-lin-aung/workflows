@@ -302,6 +302,21 @@ Full design and implementation plans live in the school-management repo:
 - `docs/superpowers/specs/2026-04-20-workflow-videos-hosting-design.md` — Phase 2.1 design (MinIO, CI, catalog, PR comments)
 - `docs/superpowers/plans/2026-04-20-workflow-videos-hosting.md` — Phase 2.1 plan
 
+## Prospect explorer (local dev tool)
+
+Simulates a new-user / business-prospect exploring the app and writes UX reports.
+
+Requirements beyond Phase 1:
+- Node 20+ on the developer's laptop (same as Playwright)
+- `ANTHROPIC_API_KEY` env var
+- `@playwright/mcp` is fetched automatically via `npx` on first run
+
+Run from a host app repo:
+
+    ANTHROPIC_API_KEY=sk-... bundle exec bin/rails prospect:explore
+
+See `docs/superpowers/specs/2026-04-21-prospect-explorer-design.md` (in the school-management repo) for the full design.
+
 ## License
 
 MIT — see `MIT-LICENSE`.

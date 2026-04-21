@@ -21,4 +21,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "playwright-ruby-client", "~> 1.50"
   spec.add_dependency "aws-sdk-s3", "~> 1.140"
   spec.add_dependency "octokit",    "~> 9.0"
+  spec.add_dependency "anthropic", "~> 1.0"
 end
