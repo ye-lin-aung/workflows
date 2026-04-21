@@ -110,7 +110,19 @@ module Workflows
               },
               "required" => ["feature", "evidence", "confidence"]
             }
-          }
+          },
+          {
+            name: "spawn_followup",
+            description: "Start a child thread for a new question that emerged during exploration.",
+            input_schema: {
+              "type" => "object",
+              "properties" => {
+                "question" => { "type" => "string" },
+                "reason"   => { "type" => "string" }
+              },
+              "required" => ["question"]
+            }
+          },
         ]
 
         mcp_tools + internal
@@ -142,6 +154,14 @@ module Workflows
             confidence: input["confidence"],
             business_value: input["business_value"]
           )
+        when "spawn_followup"
+          candidate = input["question"].to_s
+          if @novelty.novel?(candidate)
+            @novelty.record(candidate)
+            state.record_breadcrumb(summary: "spawn_followup: #{candidate}", url: nil)
+          else
+            state.record_breadcrumb(summary: "follow-up rejected (not novel): #{candidate}", url: nil)
+          end
         end
       end
 

@@ -116,4 +116,32 @@ class Workflows::Prospect::ExplorerTest < ActiveSupport::TestCase
     state = exp.explore(entry: simple_entry, target_url: "http://localhost:3000")
     refute state.concluded?
   end
+
+  test "spawn_followup creates a breadcrumb when novel" do
+    anthropic = FakeAnthropic.new([
+      turn(tool_uses: [{ id: "1", name: "spawn_followup",
+                        input: { "question" => "What is a term?", "reason" => "saw 'Terms' in nav" } }]),
+      turn(tool_uses: [{ id: "2", name: "conclude",
+                        input: { "verdict" => "easy", "summary" => "done" } }])
+    ])
+    exp = Workflows::Prospect::Explorer.new(anthropic_client: anthropic, mcp_client: FakeMcp.new)
+    state = exp.explore(entry: simple_entry, target_url: "http://localhost:3000")
+    assert state.concluded?
+    followup_crumb = state.breadcrumbs.find { |b| b[:summary].to_s.include?("spawn_followup") }
+    assert followup_crumb
+  end
+
+  test "rejects a duplicate follow-up via novelty gate" do
+    anthropic = FakeAnthropic.new([
+      turn(tool_uses: [{ id: "1", name: "spawn_followup",
+                        input: { "question" => "How do I X?", "reason" => "same thing" } }]),
+      turn(tool_uses: [{ id: "2", name: "conclude",
+                        input: { "verdict" => "easy", "summary" => "done" } }])
+    ])
+    exp = Workflows::Prospect::Explorer.new(anthropic_client: anthropic, mcp_client: FakeMcp.new)
+    state = exp.explore(entry: simple_entry, target_url: "http://localhost:3000")
+    assert state.concluded?
+    rejected = state.breadcrumbs.find { |b| b[:summary].to_s.include?("follow-up rejected") }
+    assert rejected
+  end
 end
