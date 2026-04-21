@@ -1,0 +1,25 @@
+questions:
+  - id: admin_create_school
+    type: question
+    group: Onboarding
+    persona: admin_new_marisol
+    question: "How do I create a new school?"
+    start_route: root_path
+    expected_workflow: admin/onboard_school
+
+  - id: student_check_grades
+    type: question
+    group: "Academic records"
+    persona: student_jordan_patel
+    question: "How do I check my grades?"
+    start_route: student_portal_root_path
+
+  - id: admin_transfer_student
+    type: scenario
+    group: Admissions
+    persona: admin_dr_kim
+    question: "How do I onboard a transfer student?"
+    start_route: admin_dashboard_path
+    sub_goals:
+      - "Locate the student's record"
+      - "Record their prior school"
